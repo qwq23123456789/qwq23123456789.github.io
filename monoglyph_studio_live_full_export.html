@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monoglyph Studio Pro – 即時 ASCII 藝術（盲文模式）</title>
+<style>
+* { box-sizing: border-box; }
+
+:root{
+  --accent:#007aff; --accent-2:#0a84ff; --success:#32d74b;
+  --glass-bg: rgba(255,255,255,0.64); --glass-border: rgba(0,0,0,0.06);
+  --panel-radius:18px; --text:#111; --muted:#666;
+}
+html,body{height:100%;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:linear-gradient(135deg,#f7f8fb,#eef1f6);
+  color:var(--text);
+  min-height:100vh;
+  padding:20px;
+  transition:background .35s ease,color .35s ease;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  position:relative;
+  overflow-x:hidden;
+}
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  opacity:0;
+  transition:opacity 1s ease-in-out;
+  z-index:-1;
+  pointer-events:none;
+}
+body.bg-loaded::before{opacity:0.26}
+body.dark-mode{background:linear-gradient(135deg,#071120,#0b1220);color:#eef2ff}
+body.dark-mode .panel{background:rgba(8,12,18,0.6);border:1px solid rgba(255,255,255,0.03)}
+body.dark-mode .muted{color:#9aa6c4}
+body.dark-mode .mode-btn{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.08);color:#eef2ff}
+body.dark-mode .upload{background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.15)}
+body.dark-mode .upload:hover{background:rgba(255,255,255,0.06);border-color:var(--accent-2)}
+body.dark-mode .preview-box{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04)}
+body.dark-mode .history-item{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.06)}
+body.dark-mode .history-item:hover{background:rgba(255,255,255,0.08)}
+body.dark-mode .filter-btn{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.08)}
+
+.app-title{
+  max-width:1400px;
+  margin:0 auto 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:0 4px;
+}
+.brand{display:flex;flex-direction:column}
+h1{margin:0;font-size:20px;letter-spacing:0.2px;font-weight:600}
+.tagline{margin:0;color:var(--muted);font-size:13px;margin-top:2px}
+
+.theme-toggle{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:var(--glass-bg);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  border:1px solid var(--glass-border);
+  box-shadow:0 6px 20px rgba(2,6,23,0.07);
+  backdrop-filter:blur(8px) saturate(110%);
+  transition:transform .12s ease;
+  flex-shrink:0;
+}
+.theme-toggle:active{transform:scale(.95)}
+.theme-toggle svg{width:20px;height:20px;display:block;stroke:var(--text);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s ease}
+body.dark-mode .theme-toggle svg{stroke:#eef2ff}
+
+.container{
+  max-width:1400px;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:420px 1fr;
+  gap:22px;
+  align-items:start;
+}
+@media (max-width:980px){
+  .container{grid-template-columns:1fr;padding:0}
+  .theme-toggle{position:fixed;top:18px;right:18px;z-index:9999}
+}
+
+.panel{
+  background:var(--glass-bg);
+  border-radius:var(--panel-radius);
+  padding:20px;
+  border:1px solid var(--glass-border);
+  box-shadow:0 8px 28px rgba(2,6,23,0.06);
+  transition:transform .18s ease;
+  position:relative;
+  z-index:5;
+  backdrop-filter:blur(10px);
+}
+.mode-row{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.mode-label{font-weight:600;margin-right:6px;color:var(--text);font-size:14px}
+
+.mode-btn{
+  background:rgba(255,255,255,0.75);
+  border:1px solid rgba(0,0,0,0.06);
+  padding:8px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+  color:#222;
+  transition:all .12s ease;
+  font-size:13px;
+}
+.mode-btn:hover{transform:translateY(-1px)}
+.mode-btn.active{
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  color:#fff;
+  border:none;
+  box-shadow:0 4px 12px rgba(10,132,255,0.18);
+}
+.mode-btn[data-mode="smart"]{
+  background:linear-gradient(135deg,#667eea,#764ba2);
+  color:#fff;
+  border:none;
+}
+.mode-btn[data-mode="smart"]:hover{
+  box-shadow:0 4px 16px rgba(102,126,234,0.4);
+}
+.mode-btn[data-mode="smart"].active{
+  background:linear-gradient(135deg,#667eea,#764ba2);
+  box-shadow:0 6px 20px rgba(102,126,234,0.5);
+  transform:translateY(-2px);
+}
+
+.upload{
+  border-radius:12px;
+  border:2px dashed rgba(0,0,0,0.15);
+  padding:28px 20px;
+  text-align:center;
+  background:rgba(255,255,255,0.5);
+  cursor:pointer;
+  margin:0 0 16px 0;
+  transition:all 0.2s ease;
+  width:100%;
+}
+.upload:hover{border-color:var(--accent);background:rgba(255,255,255,0.7)}
+.upload.drag-over{
+  border-color:var(--accent);
+  background:rgba(0,122,255,0.08);
+  transform:scale(1.01);
+}
+.upload .big{font-size:36px;margin-bottom:10px}
+.upload-text{font-weight:600;margin-bottom:6px;font-size:14px;color:var(--text)}
+.muted{color:var(--muted);font-size:13px}
+
+.slider-group{margin-bottom:12px}
+.slider-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.width-display{color:var(--accent);font-weight:700;margin-left:4px}
+input[type="range"]{
+  width:100%;
+  cursor:pointer;
+  height:6px;
+  border-radius:3px;
+  outline:none;
+  -webkit-appearance:none;
+  background:rgba(0,122,255,0.2);
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:var(--accent);
+  cursor:pointer;
+  transition:all .15s ease;
+  box-shadow:0 2px 6px rgba(0,122,255,0.3);
+}
+input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type="range"]::-moz-range-thumb{
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:var(--accent);
+  cursor:pointer;
+  border:none;
+  box-shadow:0 2px 6px rgba(0,122,255,0.3);
+}
+
+.btn{
+  padding:11px 16px;
+  border-radius:12px;
+  border:none;
+  cursor:pointer;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:13px;
+  transition:all .12s ease;
+}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,0.1)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#fff;box-shadow:0 4px 12px rgba(10,132,255,0.15)}
+.btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.08);color:var(--text)}
+.btn.success{background:linear-gradient(90deg,var(--success),#2ebf45);color:#fff}
+.btn.danger{background:linear-gradient(90deg,#ff3b30,#ff6b60);color:#fff}
+
+.preview{position:relative;display:flex;flex-direction:column;gap:12px}
+.preview-box{
+  background:rgba(255,255,255,0.75);
+  border-radius:14px;
+  padding:16px;
+  min-height:160px;
+  border:1px solid rgba(0,0,0,0.06);
+  box-shadow:0 6px 18px rgba(2,6,23,0.06);
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+}
+.preview-img{max-width:100%;border-radius:8px;display:block;margin:auto}
+.preview-img:not([src]),.preview-img[src=""]{display:none}
+
+.ascii-area{
+  background:#000;
+  padding:16px;
+  border-radius:8px;
+  color:#00ff88;
+  font-family:Menlo,Monaco,monospace;
+  font-size:10px;
+  line-height:1.15;
+  white-space:pre;
+  overflow:auto;
+  min-height:500px;
+  max-height:700px;
+  transition:all 0.3s ease;
+}
+.ascii-area.show-all{max-height:none}
+.ascii-area.bordered{
+  border:3px solid currentColor;
+  box-shadow:0 0 20px currentColor;
+}
+.ascii-area.colorful{
+  color:inherit;
+}
+.ascii-char{
+  display:inline;
+}
+
+.color-btn{
+  width:36px;
+  height:36px;
+  border-radius:8px;
+  border:2px solid transparent;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+.color-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 4px 12px rgba(0,0,0,0.2);
+}
+.color-btn.active{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(0,122,255,0.2);
+  transform:scale(1.1);
+}
+.color-picker{
+  width:36px;
+  height:36px;
+  border-radius:8px;
+  border:2px solid rgba(0,0,0,0.1);
+  cursor:pointer;
+  padding:0;
+}
+.color-picker::-webkit-color-swatch-wrapper{padding:2px}
+.color-picker::-webkit-color-swatch{border:none;border-radius:6px}
+
+.filter-btn{
+  padding:8px 12px;
+  background:rgba(255,255,255,0.7);
+  border:1px solid rgba(0,0,0,0.08);
+  border-radius:8px;
+  cursor:pointer;
+  font-size:12px;
+  transition:all .15s ease;
+  font-weight:500;
+}
+.filter-btn:hover{background:rgba(255,255,255,0.9);transform:translateY(-1px)}
+.filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.history-section{margin-top:16px}
+.history-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:8px}
+.history-item{
+  position:relative;
+  aspect-ratio:1;
+  border-radius:8px;
+  overflow:hidden;
+  cursor:pointer;
+  border:2px solid rgba(0,0,0,0.06);
+  transition:all .2s ease;
+  background:rgba(255,255,255,0.5);
+}
+.history-item:hover{transform:scale(1.05);border-color:var(--accent);box-shadow:0 4px 12px rgba(0,122,255,0.2)}
+.history-item img{width:100%;height:100%;object-fit:cover}
+.history-item .delete-btn{
+  position:absolute;
+  top:4px;
+  right:4px;
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  background:rgba(255,59,48,0.9);
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  font-size:12px;
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+.history-item:hover .delete-btn{display:flex}
+
+.example-section{margin-bottom:16px}
+.example-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.example-item{
+  aspect-ratio:1;
+  border-radius:8px;
+  overflow:hidden;
+  cursor:pointer;
+  border:2px solid rgba(0,0,0,0.06);
+  transition:all .2s ease;
+  position:relative;
+}
+.example-item:hover{transform:scale(1.05);border-color:var(--accent);box-shadow:0 4px 12px rgba(0,122,255,0.2)}
+.example-item img{width:100%;height:100%;object-fit:cover}
+.example-label{
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  background:linear-gradient(transparent,rgba(0,0,0,0.7));
+  color:#fff;
+  padding:4px 6px;
+  font-size:11px;
+  font-weight:600;
+  text-align:center;
+}
+
+.error{
+  display:none;
+  margin-top:12px;
+  padding:12px;
+  background:#fee;
+  border-radius:8px;
+  color:#c33;
+  font-size:13px;
+  border:1px solid rgba(204,51,51,0.2);
+}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.small{font-size:12px;color:var(--muted)}
+
+.collapsible{
+  margin-top:16px;
+  border-top:1px solid rgba(0,0,0,0.06);
+  padding-top:12px;
+}
+.collapsible-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  cursor:pointer;
+  padding:8px 0;
+  user-select:none;
+}
+.collapsible-header:hover .small{color:var(--accent)}
+.collapsible-arrow{
+  transition:transform 0.3s ease;
+  color:var(--accent);
+}
+.collapsible-arrow.open{transform:rotate(180deg)}
+.collapsible-content{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height 0.3s ease;
+}
+.collapsible-content.open{max-height:600px;overflow-y:auto}
+</style>
+</head>
+<body>
+<div class="app-title">
+  <div class="brand">
+    <h1>Monoglyph Studio Pro</h1>
+    <div class="tagline">終極 ASCII 藝術工具 - 即時更新 + 盲文模式</div>
+  </div>
+  <div class="theme-toggle" id="themeToggle" title="切換亮/暗模式" role="button">
+    <svg id="iconSun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4"></circle>
+      <line x1="12" y1="2" x2="12" y2="4"></line>
+      <line x1="12" y1="20" x2="12" y2="22"></line>
+      <line x1="4" y1="12" x2="2" y2="12"></line>
+      <line x1="22" y1="12" x2="20" y2="12"></line>
+      <line x1="6.34" y1="6.34" x2="4.93" y2="4.93"></line>
+      <line x1="19.07" y1="19.07" x2="17.66" y2="17.66"></line>
+      <line x1="6.34" y1="17.66" x2="4.93" y2="19.07"></line>
+      <line x1="19.07" y1="4.93" x2="17.66" y2="6.34"></line>
+    </svg>
+    <svg id="iconMoon" viewBox="0 0 24 24" style="display:none">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+    </svg>
+  </div>
+</div>
+
+<div class="panel" style="max-width:1400px;margin:0 auto 22px">
+  <div class="mode-row">
+    <div class="mode-label">風格模式</div>
+    <button class="mode-btn active" data-mode="normal">普通</button>
+    <button class="mode-btn" data-mode="detailed">精細</button>
+    <button class="mode-btn" data-mode="gradient">自然漸層</button>
+    <button class="mode-btn" data-mode="blocks">方塊像素</button>
+    <button class="mode-btn" data-mode="lines">線條描邊</button>
+    <button class="mode-btn" data-mode="smart">🧠 AI 智能</button>
+    <button class="mode-btn" data-mode="braille">盲文 ⣿</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="panel">
+    <div class="example-section">
+      <label class="small" style="font-weight:600">📸 快速示範</label>
+      <div class="example-grid">
+        <div class="example-item" data-example="portrait">
+          <div style="background:linear-gradient(135deg,#667eea,#764ba2);width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px">圖片1
+</div>
+          <div class="example-label"></div>
+        </div>
+        <div class="example-item" data-example="landscape">
+          <div style="background:linear-gradient(135deg,#f093fb,#f5576c);width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px">圖片2
+</div>
+          <div class="example-label"></div>
+        </div>
+        <div class="example-item" data-example="animal">
+          <div style="background:linear-gradient(135deg,#4facfe,#00f2fe);width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px">圖片3
+</div>
+          <div class="example-label"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload" id="uploadArea" tabindex="0" role="button">
+      <div class="big">📷</div>
+      <div class="upload-text">點擊或拖曳上傳圖片</div>
+      <div class="muted">支持 JPG、PNG、GIF、WebP;也可貼上圖片</div>
+      <input id="fileInput" type="file" accept="image/*" style="display:none" />
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-row">
+        <label class="small">寬度: <span id="widthDisplay" class="width-display">80</span> 字元</label>
+      </div>
+      <input id="widthSlider" type="range" min="30" max="300" value="80" />
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-row">
+        <label class="small">字體大小: <span id="fontSizeDisplay" class="width-display">10</span> px</label>
+      </div>
+      <input id="fontSizeSlider" type="range" min="10" max="18" value="12" />
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-row">
+        <label class="small">亮度: <span id="brightnessDisplay" class="width-display">0</span></label>
+      </div>
+      <input id="brightnessSlider" type="range" min="-100" max="100" value="0" />
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-row">
+        <label class="small">對比度: <span id="contrastDisplay" class="width-display">0</span></label>
+      </div>
+      <input id="contrastSlider" type="range" min="-100" max="100" value="0" />
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="small" style="font-weight:600">🎨 字體顏色</label>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <button class="color-btn active" data-color="#00ff88" style="background:#00ff88"></button>
+        <button class="color-btn" data-color="#00d4ff" style="background:#00d4ff"></button>
+        <button class="color-btn" data-color="#ff3b8f" style="background:#ff3b8f"></button>
+        <button class="color-btn" data-color="#ffcc00" style="background:#ffcc00"></button>
+        <button class="color-btn" data-color="#9d4edd" style="background:#9d4edd"></button>
+        <button class="color-btn" data-color="#ff6b35" style="background:#ff6b35"></button>
+        <button class="color-btn" data-color="#ffffff" style="background:#ffffff;border:2px solid #ddd"></button>
+        <input type="color" id="customColor" class="color-picker" value="#00ff88" title="自訂顏色" />
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="small" style="font-weight:600">🖼️ 背景顏色</label>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <button class="color-btn active" data-bg-color="#000000" style="background:#000000"></button>
+        <button class="color-btn" data-bg-color="#1a1a2e" style="background:#1a1a2e"></button>
+        <button class="color-btn" data-bg-color="#0f3460" style="background:#0f3460"></button>
+        <button class="color-btn" data-bg-color="#2d4a3e" style="background:#2d4a3e"></button>
+        <button class="color-btn" data-bg-color="#ffffff" style="background:#ffffff;border:2px solid #ddd"></button>
+        <input type="color" id="customBgColor" class="color-picker" value="#000000" title="自訂背景色" />
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label class="small" style="font-weight:600">✨ 特效</label>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <button class="filter-btn" data-filter="invert">🔄 反轉</button>
+        <button class="filter-btn" data-filter="border">🖼️ 框線</button>
+        <button class="filter-btn" data-filter="shadow">💫 陰影</button>
+        <button class="filter-btn" data-filter="colorful">🌈 彩色</button>
+      </div>
+    </div>
+
+    <button id="updateBtn" class="btn primary" style="width:100%;margin-bottom:12px">🎨 生成 ASCII 藝術（保留手動）</button>
+
+    <div class="action-row">
+      <button id="copyBtn" class="btn ghost">📋 複製</button>
+      <button id="downloadBtn" class="btn ghost">💾 TXT</button>
+      <button id="exportImageBtn" class="btn ghost">🖼️ PNG</button>
+      <button id="resetBtn" class="btn danger" style="flex:1">🔄 重置</button>
+    </div>
+
+    <div class="error" id="errorMsg"></div>
+
+    <div class="collapsible">
+      <div class="collapsible-header" id="historyHeader">
+        <label class="small" style="font-weight:600">📜 歷史記錄 (<span id="historyCount">0</span>)</label>
+        <span class="small collapsible-arrow" id="historyArrow">▼</span>
+      </div>
+      <div class="collapsible-content" id="historyContent">
+        <div class="history-grid" id="historyGrid"></div>
+      </div>
+    </div>
+
+    <div class="preview-box" style="margin-top:16px;max-height:400px;overflow:auto">
+      <h3 style="margin:0 0 10px 0;font-size:15px;color:var(--text)">原始圖片預覽</h3>
+      <img id="previewImage" class="preview-img" alt="原始圖片預覽" style="max-height:340px;object-fit:contain" />
+    </div>
+  </div>
+
+  <div class="preview">
+    <div class="preview-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 id="asciiTitle" style="margin:0;font-size:15px;color:var(--text)">ASCII 藝術(普通)</h3>
+        <button id="toggleShowAll" class="btn ghost" style="padding:6px 12px;font-size:12px">顯示全部</button>
+      </div>
+      <pre id="asciiOutput" class="ascii-area"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const EXTENDED_TONES = " .:-=+*#%@";
+const BLOCKS = " ░▒▓█";
+const LINES = "|Il! -_=\\/(){}[]+LJTY<>vV^A~sS";
+const SMART_CHARS = {
+  edge: "|-+/\\XxVv^<>*#",
+  light: " .'`:",
+  mid: ":-=+*",
+  dark: "#%@MW",
+  detail: "oOcCeE0"
+};
+const ASCII_SETS = {
+  normal: [' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'],
+  detailed: [' ', '.', ':', ';', '+', '=', '*', '#', '@', '█']
+};
+const BRAILLE = "⠀⡀⣀⣄⣤⣦⣶⣾⣿"; // 從淺到深
+
+let currentMode = 'normal';
+let currentWidth = 80;
+let currentAscii = '';
+let currentFile = null;
+let currentColor = '#00ff88';
+let currentBgColor = '#000000';
+let currentFontSize = 10;
+let brightness = 0;
+let contrast = 0;
+let invertEnabled = false;
+let borderEnabled = false;
+let shadowEnabled = false;
+let colorfulEnabled = false;
+let history = [];
+
+const body = document.body;
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+const previewImage = document.getElementById('previewImage');
+const asciiOutput = document.getElementById('asciiOutput');
+const widthSlider = document.getElementById('widthSlider');
+const widthDisplay = document.getElementById('widthDisplay');
+const fontSizeSlider = document.getElementById('fontSizeSlider');
+const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+const brightnessSlider = document.getElementById('brightnessSlider');
+const brightnessDisplay = document.getElementById('brightnessDisplay');
+const contrastSlider = document.getElementById('contrastSlider');
+const contrastDisplay = document.getElementById('contrastDisplay');
+const modeBtns = document.querySelectorAll('.mode-btn');
+const updateBtn = document.getElementById('updateBtn');
+const copyBtn = document.getElementById('copyBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const exportImageBtn = document.getElementById('exportImageBtn');
+const resetBtn = document.getElementById('resetBtn');
+const errorMsg = document.getElementById('errorMsg');
+const themeToggle = document.getElementById('themeToggle');
+const iconSun = document.getElementById('iconSun');
+const iconMoon = document.getElementById('iconMoon');
+const asciiTitle = document.getElementById('asciiTitle');
+const toggleShowAll = document.getElementById('toggleShowAll');
+const colorBtns = document.querySelectorAll('[data-color]');
+const bgColorBtns = document.querySelectorAll('[data-bg-color]');
+const customColor = document.getElementById('customColor');
+const customBgColor = document.getElementById('customBgColor');
+const filterBtns = document.querySelectorAll('.filter-btn');
+const historyHeader = document.getElementById('historyHeader');
+const historyContent = document.getElementById('historyContent');
+const historyGrid = document.getElementById('historyGrid');
+const historyCount = document.getElementById('historyCount');
+const historyArrow = document.getElementById('historyArrow');
+const exampleItems = document.querySelectorAll('.example-item');
+
+function updateThemeUI(){
+  const isDark = body.classList.contains('dark-mode');
+  iconSun.style.display = isDark ? 'none' : 'block';
+  iconMoon.style.display = isDark ? 'block' : 'none';
+}
+
+themeToggle.addEventListener('click', ()=>{ 
+  body.classList.toggle('dark-mode'); 
+  updateThemeUI(); 
+});
+
+toggleShowAll.addEventListener('click', ()=>{
+  asciiOutput.classList.toggle('show-all');
+  toggleShowAll.textContent = asciiOutput.classList.contains('show-all') ? '收起' : '顯示全部';
+});
+
+historyHeader.addEventListener('click', ()=>{
+  historyContent.classList.toggle('open');
+  historyArrow.classList.toggle('open');
+});
+
+let bgTimer = null;
+function loadBackground(){
+  fetch('https://www.loliapi.com/bg/?type=url&_=' + Date.now())
+    .then(r => r.ok ? r.text() : Promise.reject())
+    .then(url => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = ()=>{
+        const style = document.getElementById('bgStyle') || document.createElement('style');
+        style.id = 'bgStyle';
+        style.textContent = `body::before{background-image:url('${url}')}`;
+        if(!style.parentNode) document.head.appendChild(style);
+        body.classList.add('bg-loaded');
+      };
+      img.src = url;
+    })
+    .catch(()=>console.warn('背景載入失敗'));
+}
+loadBackground();
+bgTimer = setInterval(loadBackground, 5 * 60 * 1000);
+
+function showError(msg){ 
+  errorMsg.textContent = msg; 
+  errorMsg.style.display='block'; 
+  setTimeout(()=>errorMsg.style.display='none', 3500); 
+}
+
+function updateAsciiTitle(){ 
+  const map = {normal:'普通',detailed:'精細',gradient:'自然漸層',blocks:'方塊像素',lines:'線條描邊',smart:'🧠 AI 智能',braille:'盲文 ⣿'}; 
+  asciiTitle.textContent = 'ASCII 藝術(' + (map[currentMode]||currentMode) + ')'; 
+}
+
+modeBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    modeBtns.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    updateAsciiTitle();
+    if(currentFile) convertImage();
+  });
+});
+
+widthSlider.addEventListener('input', ()=>{ 
+  currentWidth = parseInt(widthSlider.value); 
+  widthDisplay.textContent = currentWidth; 
+  if(currentFile) convertImage();
+});
+
+fontSizeSlider.addEventListener('input', ()=>{ 
+  currentFontSize = parseInt(fontSizeSlider.value); 
+  fontSizeDisplay.textContent = currentFontSize;
+  asciiOutput.style.fontSize = currentFontSize + 'px';
+  if(currentFile) convertImage();
+});
+
+brightnessSlider.addEventListener('input', ()=>{ 
+  brightness = parseInt(brightnessSlider.value); 
+  brightnessDisplay.textContent = brightness; 
+  if(currentFile) convertImage();
+});
+
+contrastSlider.addEventListener('input', ()=>{ 
+  contrast = parseInt(contrastSlider.value); 
+  contrastDisplay.textContent = contrast; 
+  if(currentFile) convertImage();
+});
+
+uploadArea.addEventListener('click', ()=>fileInput.click());
+
+uploadArea.addEventListener('dragover', e=>{ 
+  e.preventDefault(); 
+  e.stopPropagation();
+  uploadArea.classList.add('drag-over');
+});
+
+uploadArea.addEventListener('dragleave', e=>{ 
+  e.preventDefault(); 
+  e.stopPropagation();
+  if(e.target === uploadArea) uploadArea.classList.remove('drag-over');
+});
+
+uploadArea.addEventListener('drop', e=>{ 
+  e.preventDefault(); 
+  e.stopPropagation();
+  uploadArea.classList.remove('drag-over');
+  const f = e.dataTransfer?.files?.[0]; 
+  if(f?.type.startsWith('image/')){ 
+    currentFile = f; 
+    convertImage(); 
+  } else showError('請上傳圖片檔案');
+});
+
+fileInput.addEventListener('change', ()=>{ 
+  const f = fileInput.files?.[0]; 
+  if(f){ 
+    currentFile = f; 
+    convertImage(); 
+  } 
+});
+
+exampleItems.forEach(item=>{
+  item.addEventListener('click', ()=>{
+    const example = item.dataset.example;
+    asciiOutput.textContent = '⏳ 載入範例圖片...';
+    fetch('https://www.loliapi.com/bg/?type=url&_=' + Date.now())
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(url => fetch(url))
+      .then(r => r.blob())
+      .then(blob => {
+        currentFile = new File([blob], 'example_' + example + '.jpg', {type: 'image/jpeg'});
+        convertImage();
+      })
+      .catch(()=>{
+        fetch(EXAMPLE_IMAGES[example])
+          .then(r => r.blob())
+          .then(blob => {
+            currentFile = new File([blob], example + '.svg', {type: 'image/svg+xml'});
+            convertImage();
+          });
+      });
+  });
+});
+
+function mapChar(brightness, mode, edgeStrength = 0, contrast = 0){
+  let set;
+  if(mode === 'gradient') set = EXTENDED_TONES;
+  else if(mode === 'blocks') set = BLOCKS;
+  else if(mode === 'lines') set = LINES;
+  else if(mode === 'braille') set = BRAILLE;
+  else if(mode === 'smart'){
+    if(edgeStrength > 0.6){
+      const chars = SMART_CHARS.edge;
+      const idx = Math.floor(brightness * (chars.length - 1));
+      return chars[idx];
+    } else if(brightness < 0.2){
+      return SMART_CHARS.light[Math.floor(Math.random() * SMART_CHARS.light.length)];
+    } else if(brightness < 0.5){
+      const chars = contrast > 0.3 ? SMART_CHARS.detail : SMART_CHARS.mid;
+      const idx = Math.floor((brightness - 0.2) / 0.3 * (chars.length - 1));
+      return chars[Math.max(0, Math.min(chars.length - 1, idx))];
+    } else {
+      const chars = SMART_CHARS.dark;
+      const idx = Math.floor((brightness - 0.5) / 0.5 * (chars.length - 1));
+      return chars[Math.max(0, Math.min(chars.length - 1, idx))];
+    }
+  }
+  else set = ASCII_SETS[mode] || ASCII_SETS.normal;
+  const idx = Math.floor(brightness * (set.length - 1));
+  return set[idx];
+}
+
+function applyImageAdjustments(imageData){
+  const data = imageData.data;
+  const b = brightness / 100;
+  const c = (contrast / 100 + 1);
+
+  for(let i=0; i<data.length; i+=4){
+    data[i] = Math.max(0, Math.min(255, ((data[i] - 128) * c + 128) + b * 255));
+    data[i+1] = Math.max(0, Math.min(255, ((data[i+1] - 128) * c + 128) + b * 255));
+    data[i+2] = Math.max(0, Math.min(255, ((data[i+2] - 128) * c + 128) + b * 255));
+  }
+  return imageData;
+}
+
+function convertImage(){
+  if(!currentFile) return showError('請先選擇圖片');
+
+  if(currentWidth > 150 || currentMode === 'smart'){
+    asciiOutput.textContent = '⏳ 處理中,請稍候...';
+  }
+
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const canvas = document.createElement('canvas');
+        canvas.width = currentWidth;
+        canvas.height = Math.max(1, Math.floor((img.height/img.width) * currentWidth * 0.5));
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        imageData = applyImageAdjustments(imageData);
+        ctx.putImageData(imageData, 0, 0);
+
+        const {data, width, height} = imageData;
+
+        let edges = null;
+        let contrasts = null;
+        let colors = null;
+
+        if(colorfulEnabled){
+          colors = [];
+          const gridSize = 1;
+          for(let y=0; y<height; y++){
+            for(let x=0; x<width; x++){
+              let r=0, g=0, b=0, count=0;
+              for(let dy=-Math.floor(gridSize/2); dy<=Math.floor(gridSize/2); dy++){
+                for(let dx=-Math.floor(gridSize/2); dx<=Math.floor(gridSize/2); dx++){
+                  const ny = Math.max(0, Math.min(height-1, y+dy));
+                  const nx = Math.max(0, Math.min(width-1, x+dx));
+                  const i = (ny*width + nx) * 4;
+                  r += data[i];
+                  g += data[i+1];
+                  b += data[i+2];
+                  count++;
+                }
+              }
+              colors.push({
+                r: Math.floor(r/count),
+                g: Math.floor(g/count),
+                b: Math.floor(b/count)
+              });
+            }
+          }
+        }
+
+        if(currentMode === 'smart'){
+          edges = new Float32Array(width * height);
+          contrasts = new Float32Array(width * height);
+
+          for(let y=1; y<height-1; y++){
+            for(let x=1; x<width-1; x++){
+              const getGray = (dx, dy) => {
+                const i = ((y+dy)*width + (x+dx)) * 4;
+                return 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+              };
+
+              const gx = -getGray(-1,-1) + getGray(1,-1) 
+                        -2*getGray(-1,0) + 2*getGray(1,0)
+                        -getGray(-1,1) + getGray(1,1);
+              const gy = -getGray(-1,-1) - 2*getGray(0,-1) - getGray(1,-1)
+                        +getGray(-1,1) + 2*getGray(0,1) + getGray(1,1);
+
+              edges[y*width + x] = Math.min(1, Math.sqrt(gx*gx + gy*gy) / 1024);
+
+              let min = 255, max = 0;
+              for(let dy=-1; dy<=1; dy++){
+                for(let dx=-1; dx<=1; dx++){
+                  const gray = getGray(dx, dy);
+                  if(gray < min) min = gray;
+                  if(gray > max) max = gray;
+                }
+              }
+              contrasts[y*width + x] = (max - min) / 255;
+            }
+          }
+        }
+
+        let ascii = '';
+        let htmlOutput = '';
+        for(let y=0; y<height; y++){
+          for(let x=0; x<width; x++){
+            const i = (y*width + x) * 4;
+            let bright = (0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]) / 255;
+	    if(invertEnabled) bright = 1 - bright;
+            const edgeStrength = edges ? edges[y*width + x] : 0;
+            const contrastVal = contrasts ? contrasts[y*width + x] : 0;
+            const char = mapChar(bright, currentMode, edgeStrength, contrastVal);
+            ascii += char;
+
+            if(colorfulEnabled && colors){
+              const color = colors[y*width + x];
+              htmlOutput += `<span style="color:rgb(${color.r},${color.g},${color.b})">${char}</span>`;
+            } else {
+              htmlOutput += char;
+            }
+          }
+          ascii += '\n';
+          htmlOutput += '\n';
+        }
+
+        currentAscii = ascii;
+        if(colorfulEnabled){
+          asciiOutput.innerHTML = htmlOutput;
+          asciiOutput.classList.add('colorful');
+        } else {
+          asciiOutput.textContent = ascii;
+          asciiOutput.classList.remove('colorful');
+        }
+        previewImage.src = e.target.result;
+
+        addToHistory(e.target.result);
+      }catch(err){
+        showError('轉換失敗: ' + err.message);
+      }
+    };
+    img.onerror = ()=>showError('無法載入圖片');
+    img.src = e.target.result;
+  };
+  reader.onerror = ()=>showError('讀取檔案失敗');
+  reader.readAsDataURL(currentFile);
+}
+
+function addToHistory(imgSrc){
+  const existingIndex = history.findIndex(h => h.src === imgSrc);
+  if(existingIndex !== -1){
+    history.splice(existingIndex, 1);
+  }
+
+  history.unshift({
+    src: imgSrc,
+    ascii: currentAscii,
+    settings: {
+      mode: currentMode,
+      width: currentWidth,
+      color: currentColor,
+      bgColor: currentBgColor,
+      fontSize: currentFontSize,
+      brightness: brightness,
+      contrast: contrast
+    }
+  });
+
+  if(history.length > 12) history.pop();
+
+  updateHistoryUI();
+}
+
+function updateHistoryUI(){
+  historyGrid.innerHTML = '';
+  historyCount.textContent = history.length;
+
+  history.forEach((item, index)=>{
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+      <img src="${item.src}" alt="History ${index+1}">
+      <button class="delete-btn" onclick="deleteHistory(${index})">×</button>
+    `;
+    div.addEventListener('click', (e)=>{
+      if(!e.target.classList.contains('delete-btn')){
+        loadFromHistory(index);
+      }
+    });
+    historyGrid.appendChild(div);
+  });
+}
+
+function deleteHistory(index){
+  history.splice(index, 1);
+  updateHistoryUI();
+}
+window.deleteHistory = deleteHistory;
+
+function loadFromHistory(index){
+  const item = history[index];
+  fetch(item.src)
+    .then(r => r.blob())
+    .then(blob => {
+      currentFile = new File([blob], 'history.png', {type: 'image/png'});
+      currentMode = item.settings.mode;
+      currentWidth = item.settings.width;
+      currentColor = item.settings.color;
+      currentBgColor = item.settings.bgColor;
+      currentFontSize = item.settings.fontSize;
+      brightness = item.settings.brightness;
+      contrast = item.settings.contrast;
+
+      widthSlider.value = currentWidth;
+      widthDisplay.textContent = currentWidth;
+      fontSizeSlider.value = currentFontSize;
+      fontSizeDisplay.textContent = currentFontSize;
+      brightnessSlider.value = brightness;
+      brightnessDisplay.textContent = brightness;
+      contrastSlider.value = contrast;
+      contrastDisplay.textContent = contrast;
+
+      modeBtns.forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.mode === currentMode);
+      });
+
+      asciiOutput.style.color = currentColor;
+      asciiOutput.style.background = currentBgColor;
+      asciiOutput.style.fontSize = currentFontSize + 'px';
+
+      updateAsciiTitle();
+      convertImage();
+    });
+}
+
+updateBtn.addEventListener('click', ()=>{ 
+  if(currentFile) convertImage(); 
+  else showError('請先選擇圖片'); 
+});
+
+resetBtn.addEventListener('click', ()=>{
+  currentWidth = 80;
+  currentFontSize = 10;
+  brightness = 0;
+  contrast = 0;
+  invertEnabled = false;
+  borderEnabled = false;
+  shadowEnabled = false;
+  currentColor = '#00ff88';
+  currentBgColor = '#000000';
+
+  widthSlider.value = 80;
+  widthDisplay.textContent = 80;
+  fontSizeSlider.value = 10;
+  fontSizeDisplay.textContent = 10;
+  brightnessSlider.value = 0;
+  brightnessDisplay.textContent = 0;
+  contrastSlider.value = 0;
+  contrastDisplay.textContent = 0;
+
+  filterBtns.forEach(btn=>btn.classList.remove('active'));
+  asciiOutput.classList.remove('bordered');
+  asciiOutput.style.textShadow = '';
+  asciiOutput.style.color = currentColor;
+  asciiOutput.style.background = currentBgColor;
+  asciiOutput.style.fontSize = currentFontSize + 'px';
+
+  colorBtns.forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.color === '#00ff88');
+  });
+  bgColorBtns.forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.bgColor === '#000000');
+  });
+
+  if(currentFile) convertImage();
+});
+
+copyBtn.addEventListener('click', async ()=>{
+  if(!currentAscii) return showError('沒有可複製的內容');
+
+  const orig = copyBtn.textContent;
+  try {
+    // 嘗試 Clipboard API
+    await navigator.clipboard.writeText(currentAscii);
+    copyBtn.textContent = '✓ 已複製';
+  } catch (err) {
+    // fallback: 建立隱藏 textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = currentAscii;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    copyBtn.textContent = '✓ 已複製';
+  }
+  setTimeout(()=>copyBtn.textContent = orig, 1500);
+});
+
+downloadBtn.addEventListener('click', ()=>{
+  if(!currentAscii) return showError('沒有可下載的內容');
+  const blob = new Blob([currentAscii], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); 
+  a.href = url; 
+  a.download = 'ascii_' + Date.now() + '.txt'; 
+  a.click(); 
+  URL.revokeObjectURL(url);
+});
+
+
+// ✅ 改良版：可輸出包含濾鏡、陰影與顏色的 PNG
+exportImageBtn.addEventListener('click', async ()=>{
+  if(!asciiOutput.innerHTML.trim()) return showError('沒有可匯出的內容');
+
+  // 匯出時顯示提示
+  exportImageBtn.textContent = "🖼️ 生成中...";
+  exportImageBtn.disabled = true;
+
+  try {
+    // 使用 html2canvas 捕捉 ASCII 區塊
+    const { default: html2canvas } = await import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm');
+
+    const canvas = await html2canvas(asciiOutput, {
+      backgroundColor: currentBgColor || '#000000',
+      scale: 2, // 高解析輸出
+      useCORS: true,
+      logging: false
+    });
+
+    // 加入邊框
+    if (borderEnabled) {
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+    }
+
+    // 加入陰影（額外繪製）
+    if (shadowEnabled) {
+      const ctx = canvas.getContext('2d');
+      ctx.shadowColor = currentColor;
+      ctx.shadowBlur = 25;
+      ctx.drawImage(canvas, 0, 0);
+    }
+
+    // 下載圖片
+    const link = document.createElement('a');
+    link.download = 'ascii_full_' + Date.now() + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (err) {
+    showError('PNG 匯出失敗：' + err.message);
+    console.error(err);
+  } finally {
+    exportImageBtn.textContent = "🖼️ PNG";
+    exportImageBtn.disabled = false;
+  }
+});
+
+window.addEventListener('paste', e=>{
+  const item = [...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
+  if(item){
+    currentFile = item.getAsFile();
+    if(currentFile) convertImage();
+  }
+});
+
+colorBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    colorBtns.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentColor = btn.dataset.color;
+    asciiOutput.style.color = currentColor;
+    if(currentFile) convertImage();
+  });
+});
+
+bgColorBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    bgColorBtns.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentBgColor = btn.dataset.bgColor;
+    asciiOutput.style.background = currentBgColor;
+    if(currentFile) convertImage();
+  });
+});
+
+customColor.addEventListener('input', ()=>{
+  colorBtns.forEach(b=>b.classList.remove('active'));
+  currentColor = customColor.value;
+  asciiOutput.style.color = currentColor;
+  if(currentFile) convertImage();
+});
+
+customBgColor.addEventListener('input', ()=>{
+  bgColorBtns.forEach(b=>b.classList.remove('active'));
+  currentBgColor = customBgColor.value;
+  asciiOutput.style.background = currentBgColor;
+  if(currentFile) convertImage();
+});
+
+filterBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const filter = btn.dataset.filter;
+    btn.classList.toggle('active');
+
+    if(filter === 'invert'){
+      invertEnabled = !invertEnabled;
+      if(currentFile) convertImage();
+    } else if(filter === 'border'){
+      borderEnabled = !borderEnabled;
+      asciiOutput.classList.toggle('bordered');
+    } else if(filter === 'shadow'){
+      shadowEnabled = !shadowEnabled;
+      if(shadowEnabled){
+        asciiOutput.style.textShadow = `0 0 10px ${currentColor}, 0 0 20px ${currentColor}`;
+      } else {
+        asciiOutput.style.textShadow = '';
+      }
+    } else if(filter === 'colorful'){
+      colorfulEnabled = !colorfulEnabled;
+      if(currentFile) convertImage();
+    }
+  });
+});
+
+updateThemeUI();
+window.addEventListener('beforeunload', ()=>{
+  localStorage.setItem('asciiSettings', JSON.stringify({
+    mode: currentMode,
+    width: currentWidth,
+    color: currentColor,
+    bgColor: currentBgColor,
+    fontSize: currentFontSize,
+    brightness,
+    contrast
+  }));
+});
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  const s = localStorage.getItem('asciiSettings');
+  if(s){
+    try{
+      const saved = JSON.parse(s);
+      currentMode = saved.mode;
+      currentWidth = saved.width;
+      currentColor = saved.color;
+      currentBgColor = saved.bgColor;
+      currentFontSize = saved.fontSize;
+      brightness = saved.brightness;
+      contrast = saved.contrast;
+
+      widthSlider.value = currentWidth;
+      fontSizeSlider.value = currentFontSize;
+      brightnessSlider.value = brightness;
+      contrastSlider.value = contrast;
+
+      asciiOutput.style.color = currentColor;
+      asciiOutput.style.background = currentBgColor;
+      asciiOutput.style.fontSize = currentFontSize + 'px';
+      updateAsciiTitle();
+    }catch(e){console.warn('設定還原失敗', e);}
+  }
+});
+</script>
+</body>
+</html>
